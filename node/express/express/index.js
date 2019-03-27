@@ -46,11 +46,28 @@ function createApplication() {
                         next()
                     }
                 } else {
-                    if ((route.method == req.method.toLowerCase() || route.method == 'all') && (route.path == pathname || pathname == '*')) {
-                        return route.cb(req, res)
-                    } else {
-                        next()
+                    if(route.paramsArrs){
+
+                        let pathMatch = pathname.match(route.path)
+                        if(pathMatch){
+                            let params ={};
+                            for (var i = 0; i < route.paramsArrs.length; i++) {
+                                params[route.paramsArrs[i]] = pathMatch[i+1]
+                            }
+                            req.params = params;
+                            return route.cb(req, res)
+                        }else{
+                            next()
+                        }
+
+                    }else{
+                        if ((route.method == req.method.toLowerCase() || route.method == 'all') && (route.path == pathname || pathname == '*')) {
+                            return route.cb(req, res)
+                        } else {
+                            next()
+                        }
                     }
+
                 }
             }
         }
@@ -62,11 +79,19 @@ function createApplication() {
     http.METHODS.forEach(function(method) {
         method = method.toLocaleLowerCase();
         app[method] = function(path, cb) {
-            app.RouterArr.push({
-                method,
-                path,
-                cb
-            })
+            let paramsArrs = [];
+            let layer = { method, path, cb };
+            // 说明有参数过来了
+            if (path.includes(':')) {
+                console.log("layer --> ", layer);
+                path = path.replace(/:([^\/]+)/g, function() {
+                    paramsArrs.push(arguments[1]);
+                    return '([^\/]+)';
+                })
+                layer.path = path;
+                layer.paramsArrs = paramsArrs;
+            }
+            app.RouterArr.push(layer)
         }
     })
 
@@ -99,7 +124,7 @@ function createApplication() {
     }
 
     // 定义一个内置的中间件，处理get请求参数问题,所有的路径都会执行
-    app.use(function (req,res,next) {
+    app.use(function(req, res, next) {
         const urlobject = url.parse(req.url, true);
         req.query = urlobject.query
         req.path = urlobject.pathname
